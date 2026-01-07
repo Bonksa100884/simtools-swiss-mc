@@ -1,0 +1,6 @@
+metric,value
+swiss_avg_weak_top8,0.01615
+swiss_avg_weak_top24,0.9573
+baseline_avg_weak_top2,0.63315
+baseline_avg_weak_group_winners,0.1039
+n_seasons,20000

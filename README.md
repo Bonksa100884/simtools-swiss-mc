@@ -36,6 +36,23 @@ python3 src/plot_results.py
 - Kein Heim-/Auswärtsvorteil
 - Synthetische Elo-Werte statt realer Teamdaten
 
+## Real-Life-Validierung (Champions League 2024/25)
+
+Zur Plausibilitätsprüfung wurde das Simulationsergebnis mit realen Daten
+der Champions-League-Liga-Phase 2024/25 verglichen. Die Einordnung
+„schwach“ erfolgt analog zur Simulation über einen Elo-Schwellenwert von
+1500 Punkten (ClubElo).
+
+**Ergebnis:**
+- Schwache Teams in Top 8: **0 / 8**
+- Schwache Teams in Top 24: **0 / 24**
+
+Damit zeigt sich, dass sowohl in der Realität als auch in der Simulation
+keine klar schwächeren Teams die oberen Platzierungen erreichen. Dies
+spricht dafür, dass das Swiss-Format starke Teams zuverlässig nach oben
+sortiert. Der Vergleich dient als Plausibilitätscheck und ersetzt keine
+statistische Analyse, da nur eine einzelne Saison betrachtet wird.
+
 ## Autoren
 Julian Eberl  
 Samuel Bonk  

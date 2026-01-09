@@ -2,7 +2,21 @@ import csv
 
 WEAK_ELO_THRESHOLD = 1500
 
+
 def load_elo_map(path):
+    """
+    Load a mapping from team name to Elo rating from a CSV file.
+
+    Parameters
+    ----------
+    path : str
+        Path to the CSV file containing team names and Elo values.
+
+    Returns
+    -------
+    dict
+        Dictionary mapping team names to their Elo ratings.
+    """
     elo = {}
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -12,29 +26,79 @@ def load_elo_map(path):
             elo[team] = elo_val
     return elo
 
+
 def load_real_list(path):
+    """
+    Load the real Swiss-format final standings from a CSV file.
+
+    Teams are classified into:
+    - Top 8
+    - Positions 9–24 (qualified for knockout phase)
+
+    Parameters
+    ----------
+    path : str
+        Path to the CSV file containing real league phase results.
+
+    Returns
+    -------
+    tuple of list
+        (top8, top24)
+        - top8: list of teams finishing in the Top 8
+        - top24: list of teams finishing in the Top 24
+    """
     top8 = []
     top24 = []
+
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             team = row["team"].strip()
             grp = row["group"].strip()
+
             if grp == "top8":
                 top8.append(team)
                 top24.append(team)
             elif grp == "9-24":
                 top24.append(team)
+
     return top8, top24
 
+
 def count_weak(teams, elo_map):
+    """
+    Count how many teams in a given list are classified as weak.
+
+    A team is considered weak if its Elo rating is below the
+    predefined threshold.
+
+    Parameters
+    ----------
+    teams : list
+        List of team names.
+    elo_map : dict
+        Mapping from team names to Elo ratings.
+
+    Returns
+    -------
+    int
+        Number of weak teams in the given list.
+    """
     weak = 0
     for t in teams:
         if t in elo_map and elo_map[t] < WEAK_ELO_THRESHOLD:
             weak += 1
     return weak
 
+
 def main():
+    """
+    Run the real-world validation of the Swiss-format simulation.
+
+    The function loads real Elo ratings and final standings from the
+    2024/25 Champions League Swiss league phase and prints the number
+    of weak teams reaching the Top 8 and Top 24.
+    """
     elo_map = load_elo_map("data/clubelo_snapshot.csv")
     top8, top24 = load_real_list("data/real_swiss_2024_25_top24.csv")
 
@@ -45,6 +109,7 @@ def main():
     print(f"Weak threshold: Elo < {WEAK_ELO_THRESHOLD}")
     print(f"Weak teams in Top 8 : {weak8} / 8")
     print(f"Weak teams in Top 24: {weak24} / 24")
+
 
 if __name__ == "__main__":
     main()

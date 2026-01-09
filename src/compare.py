@@ -1,7 +1,7 @@
 import csv
 
-from swiss import run_swiss_simulation
-from baseline import run_baseline_simulation
+from src.swiss import run_swiss_simulation
+from src.baseline import run_baseline_simulation
 
 N_SEASONS = 20000  # final: z.B. 20000, zum Testen kleiner
 

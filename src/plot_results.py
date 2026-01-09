@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 # CSV lesen
 data = {}
-with open("summary.csv", "r") as f:
+with open("data/summary.csv", "r") as f:
     reader = csv.reader(f)
     next(reader)
     for metric, value in reader:
@@ -16,5 +16,5 @@ plt.bar(labels, values)
 plt.ylabel("Avg # weak teams per season")
 plt.title("Weak teams reaching knockout stage: Swiss vs Baseline")
 plt.tight_layout()
-plt.savefig("compare_plot.png")
+plt.savefig("figures/compare_plot.png")
 print("Saved compare_plot.png")

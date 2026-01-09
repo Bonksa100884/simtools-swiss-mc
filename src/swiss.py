@@ -1,75 +1,157 @@
+"""
+swiss.py
+
+Monte Carlo simulation of a simplified Champions League Swiss-format league phase.
+
+Core idea:
+- 36 teams with synthetic Elo ratings (tiered distribution)
+- Match outcomes based on Elo win probabilities + fixed draw probability
+- Swiss scheduling is approximated using 4 Elo-based pots:
+  each team draws 2 opponents from each pot (8 matches total)
+
+Important simplification:
+Points are accumulated per team independently. Opponent points are NOT
+added in the same loop (each team "draws its own schedule"), which is a
+simple and stable approximation for this project.
+
+Outputs:
+- Average number of weak teams (Elo < threshold) reaching Top 8 and Top 24.
+
+Authors:
+- Julian Eberl
+- Samuel Bonk
+- Yannic Leinweber
+"""
+
 import numpy as np
 
-# fester Zufalls-Seed, damit Ergebnisse reproduzierbar sind
+# Fixed random seed for reproducibility
 rng = np.random.default_rng(42)
 
 # -------------------------
-# PARAMETER
+# PARAMETERS
 # -------------------------
-WEAK_ELO_THRESHOLD = 1500   # "schwach" = Elo < X
+WEAK_ELO_THRESHOLD = 1500  # weak = Elo < threshold
 N_TEAMS = 36
 DRAW_PROB = 0.25
-N_SEASONS = 20000  # kannst du später hochdrehen
+N_SEASONS = 20000
 
 
 # -------------------------
-# TEAM-STÄRKEN GENERIEREN
+# TEAM GENERATION
 # -------------------------
-# Plausible Verteilung: 8 top, 10 stark, 10 mittel, 8 schwach
 def generate_teams():
+    """
+    Generate 36 teams with synthetic Elo ratings (tiered distribution).
+
+    Distribution (example):
+    - 8 top teams
+    - 10 strong teams
+    - 10 medium teams
+    - 8 weak teams
+
+    Returns
+    -------
+    list of tuples
+        Each tuple contains (team_name, elo_rating).
+    """
     teams = []
 
-    # 8 Top-Teams (1850–2050)
+    # 8 top teams (1850–2050)
     for i in range(8):
         teams.append(("Team_Top_" + str(i + 1), rng.integers(1850, 2051)))
 
-    # 10 starke (1750–1850)
+    # 10 strong teams (1750–1850)
     for i in range(10):
         teams.append(("Team_Strong_" + str(i + 1), rng.integers(1750, 1850)))
 
-    # 10 mittlere (1550–1750)
+    # 10 medium teams (1550–1750)
     for i in range(10):
         teams.append(("Team_Mid_" + str(i + 1), rng.integers(1550, 1750)))
 
-    # 8 schwache (1350–1550)
+    # 8 weak teams (1350–1550)
     for i in range(8):
         teams.append(("Team_Weak_" + str(i + 1), rng.integers(1350, 1550)))
 
     rng.shuffle(teams)
-    return teams  # Liste von (name, elo)
+    return teams
 
 
 # -------------------------
-# SPIELMODELL (Elo + Remis)
+# MATCH MODEL (ELO + DRAW)
 # -------------------------
 def win_probability(elo_a, elo_b):
+    """
+    Compute the win probability of team A against team B using the Elo formula.
+
+    Parameters
+    ----------
+    elo_a : int
+        Elo rating of team A.
+    elo_b : int
+        Elo rating of team B.
+
+    Returns
+    -------
+    float
+        Probability that team A wins (ignoring draws).
+    """
     return 1.0 / (1.0 + 10 ** (-(elo_a - elo_b) / 400.0))
 
 
 def simulate_match(elo_a, elo_b):
+    """
+    Simulate a single match between two teams with a fixed draw probability.
+
+    Parameters
+    ----------
+    elo_a : int
+        Elo rating of team A.
+    elo_b : int
+        Elo rating of team B.
+
+    Returns
+    -------
+    tuple of int
+        Points awarded to (team A, team B):
+        - (3, 0) if A wins
+        - (1, 1) if draw
+        - (0, 3) if B wins
+    """
     p_win_a = win_probability(elo_a, elo_b)
     p_draw = DRAW_PROB
 
-    # Rest (1 - p_draw) teilen wir proportional auf Sieg/Niederlage auf
+    # Allocate non-draw probability according to Elo win chance
     p_win_a_adj = (1 - p_draw) * p_win_a
 
     r = rng.random()
     if r < p_draw:
-        return (1, 1)   # Remis
+        return (1, 1)  # draw
     elif r < p_draw + p_win_a_adj:
-        return (3, 0)   # A gewinnt
+        return (3, 0)  # A wins
     else:
-        return (0, 3)   # B gewinnt
+        return (0, 3)  # B wins
 
 
 # -------------------------
-# SWISS: 4 TÖPFE + 2 GEGNER JE TOPF
+# SWISS APPROXIMATION: 4 POTS + 2 OPPONENTS PER POT
 # -------------------------
 def make_pots_by_elo(teams):
-    # sortiere nach Elo absteigend
+    """
+    Split teams into four pots based on Elo ranking (descending).
+
+    Parameters
+    ----------
+    teams : list of tuples
+        List of (team_name, elo_rating).
+
+    Returns
+    -------
+    list
+        List of four pots, each containing 9 teams.
+    """
     teams_sorted = sorted(teams, key=lambda x: x[1], reverse=True)
 
-    # 4 Töpfe à 9 Teams
     pot1 = teams_sorted[0:9]
     pot2 = teams_sorted[9:18]
     pot3 = teams_sorted[18:27]
@@ -79,24 +161,37 @@ def make_pots_by_elo(teams):
 
 
 def simulate_swiss_league_phase(teams):
-    points = np.zeros(len(teams), dtype=int)
+    """
+    Simulate the Swiss-format league phase (simplified scheduling).
 
+    Each team draws:
+    - 2 opponents from each of the 4 pots (8 matches total)
+
+    Points are accumulated for each team independently (approximation).
+
+    Parameters
+    ----------
+    teams : list of tuples
+        List of teams with Elo ratings.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of total points per team.
+    """
+    points = np.zeros(len(teams), dtype=int)
     pots = make_pots_by_elo(teams)
 
-    # name -> index, damit wir Gegner schnell finden
-    name_to_idx = {}
-    for i in range(len(teams)):
-        name_to_idx[teams[i][0]] = i
+    # Map team name -> index for fast lookups
+    name_to_idx = {teams[i][0]: i for i in range(len(teams))}
 
-    # Für jedes Team: 2 Gegner aus jedem Topf ziehen (8 Spiele total)
     for i in range(len(teams)):
-        name_i, elo_i = teams[i]
+        _, elo_i = teams[i]
         opponents = set()
 
         for pot in pots:
             candidates = []
-
-            for (name_j, elo_j) in pot:
+            for (name_j, _) in pot:
                 j = name_to_idx[name_j]
                 if j != i and j not in opponents:
                     candidates.append(j)
@@ -105,51 +200,62 @@ def simulate_swiss_league_phase(teams):
             for j in pick:
                 opponents.add(j)
 
-        # Spiele simulieren
+        # Simulate the 8 matches
         for j in opponents:
             _, elo_j = teams[j]
-            pi, pj = simulate_match(elo_i, elo_j)
+            pi, _ = simulate_match(elo_i, elo_j)
             points[i] += pi
 
-        # Hinweis: Wir addieren pj NICHT zu Team j,
-        # da jedes Team seine eigenen 8 Spiele "zieht".
-        # -> einfache, stabile Approximation.
+        # Note: we do NOT add the opponent points here.
+        # Each team draws its own 8 matches -> simple approximation.
 
     return points
 
 
 # -------------------------
-# EINE SAISON AUSWERTEN
+# SINGLE SEASON EVALUATION
 # -------------------------
 def simulate_one_swiss_season():
+    """
+    Simulate one Swiss-format season and count weak teams in Top 8 / Top 24.
+
+    Returns
+    -------
+    tuple of int
+        (weak_in_top8, weak_in_top24)
+    """
     teams = generate_teams()
     points = simulate_swiss_league_phase(teams)
 
-    # Ranking nach Punkten (absteigend)
     order = np.argsort(-points)
     ranked = [(teams[k][0], teams[k][1], int(points[k])) for k in order]
 
     top8 = ranked[:8]
     top24 = ranked[:24]
 
-    weak_in_top8 = 0
-    weak_in_top24 = 0
-
-    for (name, elo, pts) in top8:
-        if elo < WEAK_ELO_THRESHOLD:
-            weak_in_top8 += 1
-
-    for (name, elo, pts) in top24:
-        if elo < WEAK_ELO_THRESHOLD:
-            weak_in_top24 += 1
+    weak_in_top8 = sum(1 for (_, elo, _) in top8 if elo < WEAK_ELO_THRESHOLD)
+    weak_in_top24 = sum(1 for (_, elo, _) in top24 if elo < WEAK_ELO_THRESHOLD)
 
     return weak_in_top8, weak_in_top24
 
 
 # -------------------------
-# MONTE CARLO
+# MONTE CARLO SIMULATION
 # -------------------------
 def run_swiss_simulation(n_seasons=N_SEASONS):
+    """
+    Run a Monte Carlo simulation over many Swiss-format seasons.
+
+    Parameters
+    ----------
+    n_seasons : int
+        Number of seasons to simulate.
+
+    Returns
+    -------
+    tuple of float
+        (avg_weak_top8, avg_weak_top24)
+    """
     total_w8 = 0
     total_w24 = 0
 
@@ -158,19 +264,22 @@ def run_swiss_simulation(n_seasons=N_SEASONS):
         total_w8 += w8
         total_w24 += w24
 
+    avg_top8 = total_w8 / n_seasons
+    avg_top24 = total_w24 / n_seasons
+
     print("-----------------------------------------")
-    print("SWISS (simpel): 4 Pots, 2 Gegner je Pot")
-    print(f"Elo-Schwelle (schwach): < {WEAK_ELO_THRESHOLD}")
-    print(f"Spiele pro Team: 8")
-    print(f"Remis-Wahrscheinlichkeit: {DRAW_PROB:.2f}")
-    print(f"Simulierte Saisons: {n_seasons}")
+    print("SWISS FORMAT SIMULATION (simplified)")
+    print("4 pots, 2 opponents per pot (8 matches)")
+    print(f"Weak Elo threshold: < {WEAK_ELO_THRESHOLD}")
+    print(f"Draw probability: {DRAW_PROB:.2f}")
+    print(f"Simulated seasons: {n_seasons}")
     print("-----------------------------------------")
-    print(f"Ø schwache Teams in TOP 8 :  {total_w8 / n_seasons:.2f} pro Saison")
-    print(f"Ø schwache Teams in TOP 24:  {total_w24 / n_seasons:.2f} pro Saison")
-    print("Hinweis: vereinfachtes Swiss (keine UEFA-Draw-Constraints, keine Tiebreaker).")
+    print(f"Avg. weak teams in TOP 8 :  {avg_top8:.2f} per season")
+    print(f"Avg. weak teams in TOP 24:  {avg_top24:.2f} per season")
+    print("Note: simplified Swiss (no UEFA constraints, no tie-breakers).")
     print("-----------------------------------------")
-    
-    return total_w8 / n_seasons, total_w24 / n_seasons
+
+    return avg_top8, avg_top24
 
 
 if __name__ == "__main__":
